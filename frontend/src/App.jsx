@@ -9,7 +9,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
-  const [accessCode, setAccessCode] = useState("") // ✅ store code
+  const [accessCode, setAccessCode] = useState("")   // ✅ add
 
   const handleFile = async (file) => {
     setLoading(true)
@@ -17,7 +17,7 @@ export default function App() {
     setResult(null)
 
     try {
-      const data = await analyzeAudio(file, accessCode) // ✅ send code
+      const data = await analyzeAudio(file, accessCode)  // ✅ pass it
       setResult(data)
     } catch (err) {
       console.error(err)
@@ -41,7 +41,7 @@ export default function App() {
           <div className="space-y-6">
             <UploadCard
               onFile={handleFile}
-              onCode={setAccessCode} // ✅ receive code from UploadCard
+              onCode={setAccessCode}     // ✅ capture code
               disabled={loading}
             />
 
