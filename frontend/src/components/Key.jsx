@@ -10,7 +10,7 @@ export default function Key() {
           <p className="mt-1 text-sm text-zinc-400">What the analyzer metrics mean.</p>
         </div>
 
-        <span className="inline-flex items-center rounded-full border border-zinc-600/40 bg-zinc-950/30 px-2.5 py-1 text-xs font-medium text-zinc-200 ring-1 ring-white/5">
+        <span className="inline-flex items-center justify-center text-center rounded-full border border-zinc-600/40 bg-zinc-950/30 px-2.5 py-1 text-xs font-medium text-zinc-200 ring-1 ring-white/5">
           Quick reference
         </span>
       </div>
