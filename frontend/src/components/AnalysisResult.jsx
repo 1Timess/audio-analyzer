@@ -38,11 +38,17 @@ export default function AnalysisResult({ result }) {
   }, [segments.length])
 
   return (
-    <div className="mt-6 rounded-2xl border border-zinc-700 bg-zinc-800/70 p-6 shadow-sm">
+    <div className="mt-6 rounded-3xl border border-zinc-700/60 bg-gradient-to-b from-zinc-900/70 via-zinc-900/55 to-zinc-950/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
+      {/* Glow accents */}
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-sky-500/10 blur-3xl" />
+      </div>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-white">Analysis</h2>
+          <h2 className="text-xl font-semibold text-white tracking-tight">Analysis</h2>
           <p className="mt-1 text-sm text-zinc-400">
             Segments, confidence, direction, distance, speaker grouping, and playback snippets.
           </p>
@@ -54,13 +60,16 @@ export default function AnalysisResult({ result }) {
             mime="application/json"
             content={JSON.stringify(result, null, 2)}
             label="Download JSON"
+            variant="secondary"
           />
         </div>
       </div>
 
+      <Divider />
+
       {/* Overview */}
       <Section title="Overview">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Stat label="Duration" value={duration != null ? `${duration.toFixed(2)}s` : "—"} />
           <Stat label="Sample Rate" value={result?.sample_rate ? `${result.sample_rate} Hz` : "—"} />
           <Stat label="Channels" value={result?.channels ?? "—"} />
@@ -69,10 +78,10 @@ export default function AnalysisResult({ result }) {
         </div>
 
         {rhythm && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 py-3">
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-zinc-700/70 bg-gradient-to-r from-zinc-950/55 to-zinc-900/35 px-4 py-3 shadow-sm ring-1 ring-white/5">
             <div className="text-sm text-zinc-300">
               <span className="text-zinc-400">Rhythm estimate:</span>{" "}
-              <span className="font-medium text-white">{rhythm}</span>
+              <span className="font-semibold text-white">{rhythm}</span>
             </div>
             <Badge tone="neutral">Heuristic</Badge>
           </div>
@@ -124,7 +133,7 @@ export default function AnalysisResult({ result }) {
                   return (
                     <div
                       key={sp.speaker_id}
-                      className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4"
+                      className="group rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/30 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -139,10 +148,7 @@ export default function AnalysisResult({ result }) {
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 gap-3">
-                        <MiniStat
-                          label="Pitch bucket"
-                          value={sp.pitch_bucket ?? "unknown"}
-                        />
+                        <MiniStat label="Pitch bucket" value={sp.pitch_bucket ?? "unknown"} />
                         <MiniStat
                           label="Median pitch"
                           value={
@@ -151,10 +157,7 @@ export default function AnalysisResult({ result }) {
                               : "—"
                           }
                         />
-                        <MiniStat
-                          label="Tempo bucket"
-                          value={sp.tempo_bucket ?? "unknown"}
-                        />
+                        <MiniStat label="Tempo bucket" value={sp.tempo_bucket ?? "unknown"} />
                         <MiniStat
                           label="Median syllable rate"
                           value={
@@ -169,9 +172,7 @@ export default function AnalysisResult({ result }) {
                         <Meter value={conf} label="Grouping confidence" />
                       </div>
 
-                      {sp.note && (
-                        <p className="mt-3 text-xs text-zinc-500">{sp.note}</p>
-                      )}
+                      {sp.note && <p className="mt-3 text-xs text-zinc-500">{sp.note}</p>}
                     </div>
                   )
                 })}
@@ -194,10 +195,10 @@ export default function AnalysisResult({ result }) {
         {segments.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="grid gap-6 grid-cols-[360px_1fr]">
+          <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
             {/* Segment list */}
             <div className="space-y-2">
-              <div className="max-h-140 overflow-y-auto pr-1">
+              <div className="max-h-140 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.55)_transparent]">
                 {segments.map((seg, i) => {
                   const start = Number(seg.start)
                   const end = Number(seg.end)
@@ -212,20 +213,31 @@ export default function AnalysisResult({ result }) {
                   const sid = Number(seg?.speaker_id)
                   const speakerLabel = Number.isFinite(sid) ? `Speaker ${sid + 1}` : null
 
+                  const selected = i === activeIdx
+
                   return (
                     <button
                       key={i}
                       onClick={() => setActiveIdx(i)}
                       className={[
-                        "w-full text-left rounded-xl border px-4 py-3 transition",
-                        i === activeIdx
-                          ? "border-emerald-400 bg-emerald-400/10"
-                          : "border-zinc-700 bg-zinc-900/40 hover:bg-zinc-900/60 hover:border-zinc-600",
+                        "group relative w-full text-left rounded-2xl border px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-emerald-400/40",
+                        selected
+                          ? "border-emerald-400/70 bg-gradient-to-b from-emerald-400/15 to-zinc-950/30 shadow-[0_8px_20px_rgba(16,185,129,0.12)]"
+                          : "border-zinc-700/70 bg-zinc-950/35 hover:bg-zinc-950/55 hover:border-zinc-600/80",
                       ].join(" ")}
                     >
-                      <div className="flex items-center justify-between gap-3">
+                      {/* subtle sheen */}
+                      <span
+                        className={[
+                          "pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition",
+                          "bg-gradient-to-r from-white/0 via-white/5 to-white/0",
+                          selected ? "opacity-100" : "group-hover:opacity-100",
+                        ].join(" ")}
+                      />
+
+                      <div className="relative flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-white truncate">
+                          <div className="text-sm font-semibold text-white truncate">
                             Segment {i + 1}
                             <span className="ml-2 text-zinc-400 font-normal">
                               {isFinite(start) && isFinite(end) ? `${start.toFixed(2)}s → ${end.toFixed(2)}s` : "—"}
@@ -252,9 +264,16 @@ export default function AnalysisResult({ result }) {
                             {speakerLabel ? <Badge tone="neutral">{speakerLabel}</Badge> : null}
                             <Badge tone={directionTone}>{direction}</Badge>
                           </div>
-                          <ConfidencePill value={conf} />
-                          <TinyPill label="dir" value={fmtPct(seg?.direction_confidence)} />
-                          <TinyPill label="dist" value={fmtPct(distanceConf)} />
+
+                          <div className="flex items-center gap-3">
+                            <ConfidencePill value={conf} />
+                            <div className="hidden sm:block">
+                              <TinyPill label="dir" value={fmtPct(seg?.direction_confidence)} />
+                            </div>
+                            <div className="hidden sm:block">
+                              <TinyPill label="dist" value={fmtPct(distanceConf)} />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -264,7 +283,7 @@ export default function AnalysisResult({ result }) {
             </div>
 
             {/* Segment detail */}
-            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4">
+            <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-white">
@@ -288,6 +307,7 @@ export default function AnalysisResult({ result }) {
                     filename={`segment-${activeIdx + 1}.wav`}
                     href={active.clip_base64}
                     label="Download WAV"
+                    variant="primary"
                   />
                 ) : (
                   <Badge tone="neutral">No clip</Badge>
@@ -296,14 +316,13 @@ export default function AnalysisResult({ result }) {
 
               <div className="mt-4 space-y-4">
                 {/* Playback */}
-                <div className="rounded-xl border border-zinc-700 bg-zinc-950/40 p-3">
-                  <p className="text-xs uppercase tracking-wide text-zinc-400">Playback</p>
+                <Panel title="Playback">
                   {active?.clip_base64 ? (
                     <audio className="mt-2 w-full" controls src={active.clip_base64} />
                   ) : (
                     <p className="mt-2 text-sm text-zinc-400">No audio clip attached for this segment.</p>
                   )}
-                </div>
+                </Panel>
 
                 {/* Metrics */}
                 <div className="grid grid-cols-2 gap-3">
@@ -320,7 +339,7 @@ export default function AnalysisResult({ result }) {
                 </div>
 
                 {/* Spatial */}
-                <div className="rounded-xl border border-zinc-700 bg-zinc-950/40 p-3 space-y-3">
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/35 p-3 space-y-3 ring-1 ring-white/5">
                   <div className="flex items-center justify-between">
                     <p className="text-xs uppercase tracking-wide text-zinc-400">Spatial</p>
                     <Badge tone={directionToneFrom(normalizeDirection(active))}>
@@ -340,9 +359,7 @@ export default function AnalysisResult({ result }) {
                   <Meter value={Number(active?.distance_confidence)} label="Distance confidence" />
 
                   {active?.spatial_note && (
-                    <p className="text-xs text-zinc-500">
-                      {active.spatial_note}
-                    </p>
+                    <p className="text-xs text-zinc-500">{active.spatial_note}</p>
                   )}
                 </div>
               </div>
@@ -353,12 +370,12 @@ export default function AnalysisResult({ result }) {
 
       {/* Advanced */}
       <Section title="Advanced">
-        <details className="group rounded-xl border border-zinc-700 bg-zinc-900/40 p-4">
+        <details className="group rounded-2xl border border-zinc-700/70 bg-zinc-950/30 p-4 ring-1 ring-white/5">
           <summary className="cursor-pointer select-none text-sm text-zinc-300 hover:text-white">
             Raw backend output
             <span className="ml-2 text-xs text-zinc-500 group-open:hidden">click to expand</span>
           </summary>
-          <pre className="mt-3 max-h-72 overflow-auto rounded-lg bg-black/40 p-4 text-xs text-zinc-300">
+          <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/40 p-4 text-xs text-zinc-300 ring-1 ring-white/5">
             {JSON.stringify(result, null, 2)}
           </pre>
         </details>
@@ -391,13 +408,28 @@ function formatDistanceRange(range) {
 
 /* ----------------- UI primitives ----------------- */
 
+function Divider() {
+  return <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+}
+
 function Section({ title, subtitle, children }) {
   return (
     <div className="mt-6">
-      <div className="mb-3">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        {subtitle && <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>}
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white tracking-wide">{title}</h3>
+          {subtitle && <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>}
+        </div>
       </div>
+      {children}
+    </div>
+  )
+}
+
+function Panel({ title, children }) {
+  return (
+    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/35 p-3 ring-1 ring-white/5">
+      <p className="text-xs uppercase tracking-wide text-zinc-400">{title}</p>
       {children}
     </div>
   )
@@ -405,16 +437,16 @@ function Section({ title, subtitle, children }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
+    <div className="group rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
       <p className="text-xs uppercase tracking-wide text-zinc-400">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value ?? "—"}</p>
+      <p className="mt-1 text-lg font-semibold text-white tracking-tight">{value ?? "—"}</p>
     </div>
   )
 }
 
 function MiniStat({ label, value }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+    <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/30 p-3 ring-1 ring-white/5">
       <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
       <p className="mt-1 text-sm font-semibold text-white">{value ?? "—"}</p>
     </div>
@@ -423,13 +455,18 @@ function MiniStat({ label, value }) {
 
 function Badge({ children, tone = "neutral" }) {
   const map = {
-    left: "border-sky-400/40 bg-sky-400/10 text-sky-200",
-    right: "border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-200",
-    center: "border-zinc-500/40 bg-zinc-500/10 text-zinc-200",
-    neutral: "border-zinc-500/40 bg-zinc-500/10 text-zinc-200",
+    left: "border-sky-400/40 bg-sky-400/10 text-sky-200 ring-sky-400/10",
+    right: "border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-200 ring-fuchsia-400/10",
+    center: "border-zinc-500/40 bg-zinc-500/10 text-zinc-200 ring-white/5",
+    neutral: "border-zinc-500/40 bg-zinc-500/10 text-zinc-200 ring-white/5",
   }
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${map[tone] ?? map.neutral}`}>
+    <span
+      className={[
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium shadow-sm ring-1",
+        map[tone] ?? map.neutral,
+      ].join(" ")}
+    >
       {children}
     </span>
   )
@@ -441,10 +478,10 @@ function FilterChip({ active, onClick, label, meta }) {
       type="button"
       onClick={onClick}
       className={[
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition",
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition focus:outline-none focus:ring-2 focus:ring-emerald-400/40",
         active
-          ? "border-emerald-400 bg-emerald-400/10 text-emerald-200"
-          : "border-zinc-700 bg-zinc-900/40 text-zinc-300 hover:bg-zinc-900/60 hover:border-zinc-600",
+          ? "border-emerald-400/70 bg-emerald-400/10 text-emerald-200 shadow-[0_8px_20px_rgba(16,185,129,0.12)]"
+          : "border-zinc-700/70 bg-zinc-950/30 text-zinc-300 hover:bg-zinc-950/50 hover:border-zinc-600/80",
       ].join(" ")}
     >
       <span className="font-medium">{label}</span>
@@ -456,18 +493,35 @@ function FilterChip({ active, onClick, label, meta }) {
 function ConfidencePill({ value }) {
   const v = Number(value)
   const pct = isFinite(v) ? Math.max(0, Math.min(1, v)) : null
+  const tone =
+    pct == null ? "neutral" : pct >= 0.8 ? "good" : pct >= 0.55 ? "mid" : "low"
+
+  const styles = {
+    good: "border-emerald-400/50 bg-emerald-400/10 text-emerald-200",
+    mid: "border-amber-400/50 bg-amber-400/10 text-amber-200",
+    low: "border-rose-400/50 bg-rose-400/10 text-rose-200",
+    neutral: "border-zinc-600/60 bg-zinc-500/10 text-zinc-200",
+  }
+
   return (
-    <span className="inline-flex items-center gap-2 text-xs text-zinc-300">
-      <span className="text-zinc-400">conf</span>
-      <span className="font-semibold text-white">{pct == null ? "—" : `${Math.round(pct * 100)}%`}</span>
+    <span
+      className={[
+        "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs shadow-sm ring-1 ring-white/5",
+        styles[tone],
+      ].join(" ")}
+    >
+      <span className="text-[11px] uppercase tracking-wide opacity-80">conf</span>
+      <span className="font-semibold text-white">
+        {pct == null ? "—" : `${Math.round(pct * 100)}%`}
+      </span>
     </span>
   )
 }
 
 function TinyPill({ label, value }) {
   return (
-    <span className="inline-flex items-center gap-2 text-[11px] text-zinc-400">
-      <span className="uppercase tracking-wide">{label}</span>
+    <span className="inline-flex items-center gap-2 rounded-full border border-zinc-700/70 bg-zinc-950/25 px-2.5 py-1 text-[11px] text-zinc-300 ring-1 ring-white/5">
+      <span className="uppercase tracking-wide text-zinc-400">{label}</span>
       <span className="font-semibold text-zinc-200">{value ?? "—"}</span>
     </span>
   )
@@ -476,20 +530,31 @@ function TinyPill({ label, value }) {
 function Meter({ value, label }) {
   const v = Number(value)
   const pct = isFinite(v) ? Math.max(0, Math.min(1, v)) : 0
+
+  const barTone =
+    pct >= 0.8
+      ? "from-emerald-400 to-emerald-300"
+      : pct >= 0.55
+        ? "from-amber-400 to-amber-300"
+        : "from-rose-400 to-rose-300"
+
   return (
     <div>
       <div className="flex items-center justify-between text-xs text-zinc-400">
         <span>{label}</span>
-        <span className="text-zinc-300 font-medium">{Math.round(pct * 100)}%</span>
+        <span className="text-zinc-200 font-semibold">{Math.round(pct * 100)}%</span>
       </div>
-      <div className="mt-2 h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
-        <div className="h-full rounded-full bg-emerald-400" style={{ width: `${pct * 100}%` }} />
+      <div className="mt-2 h-2.5 w-full rounded-full bg-zinc-800/80 overflow-hidden ring-1 ring-white/5">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${barTone} transition-[width] duration-500`}
+          style={{ width: `${pct * 100}%` }}
+        />
       </div>
     </div>
   )
 }
 
-function DownloadButton({ filename, mime, content, href, label }) {
+function DownloadButton({ filename, mime, content, href, label, variant = "secondary" }) {
   const onClick = () => {
     if (href) return
     const blob = new Blob([content ?? ""], { type: mime ?? "application/octet-stream" })
@@ -501,20 +566,22 @@ function DownloadButton({ filename, mime, content, href, label }) {
     URL.revokeObjectURL(url)
   }
 
+  const styles = {
+    primary:
+      "border-emerald-400/70 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/25 shadow-[0_10px_26px_rgba(16,185,129,0.12)]",
+    secondary:
+      "border-zinc-700/70 bg-zinc-950/30 text-zinc-200 hover:bg-zinc-950/55",
+  }
+
+  const base =
+    "inline-flex items-center justify-center rounded-2xl border px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ring-1 ring-white/5"
+
   return href ? (
-    <a
-      className="inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900 transition"
-      href={href}
-      download={filename}
-    >
+    <a className={[base, styles[variant] ?? styles.secondary].join(" ")} href={href} download={filename}>
       {label}
     </a>
   ) : (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900 transition"
-    >
+    <button type="button" onClick={onClick} className={[base, styles[variant] ?? styles.secondary].join(" ")}>
       {label}
     </button>
   )
@@ -522,18 +589,16 @@ function DownloadButton({ filename, mime, content, href, label }) {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-6 text-center">
+    <div className="rounded-3xl border border-zinc-700/70 bg-zinc-950/30 p-8 text-center ring-1 ring-white/5">
       <p className="text-sm font-semibold text-white">No speech detected</p>
-      <p className="mt-1 text-sm text-zinc-400">
-        Try a louder clip or a file with clearer speech.
-      </p>
+      <p className="mt-1 text-sm text-zinc-400">Try a louder clip or a file with clearer speech.</p>
     </div>
   )
 }
 
 function EmptyStateCustom({ title, subtitle }) {
   return (
-    <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-6 text-center">
+    <div className="rounded-3xl border border-zinc-700/70 bg-zinc-950/30 p-8 text-center ring-1 ring-white/5">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-1 text-sm text-zinc-400">{subtitle}</p>
     </div>
