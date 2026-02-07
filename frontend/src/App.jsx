@@ -38,7 +38,7 @@ export default function App() {
         <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-size-[48px_48px]" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-8 lg:py-10">
+      <div className="mx-auto w-full max-w-368 px-6 py-8 lg:px-10 lg:py-10">
         {/* Header */}
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -71,7 +71,7 @@ export default function App() {
         </header>
 
         {/* Main layout */}
-        <div className="grid items-start gap-8 lg:grid-cols-[420px_minmax(0,1fr)]">
+        <div className="grid items-start gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
           {/* Left column */}
           <aside className="space-y-6">
             <div className="rounded-3xl border border-zinc-700/60 bg-linear-to-b from-zinc-900/60 to-zinc-950/40 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
