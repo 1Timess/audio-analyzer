@@ -132,7 +132,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="mt-10 flex flex-col gap-2 border-t border-white/5 pt-6 text-xs text-zinc-500 md:flex-row md:items-center md:justify-between">
-          <p>Audio Analyzer • Local UI</p>
+          <p>Audio Analyzer • EV</p>
           <p className="text-zinc-600">
             Metrics are heuristic — treat low-confidence labels as best-effort.
           </p>
