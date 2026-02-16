@@ -11,29 +11,20 @@ export default function App() {
   const [error, setError] = useState(null)
   const [accessCode, setAccessCode] = useState("")
 
-  // ✅ Prevent browser from opening dropped files (capture phase)
+  // ✅ Prevent browser from navigating when dropping files outside drop zone
   useEffect(() => {
     const prevent = (e) => {
       e.preventDefault()
-      e.stopPropagation()
     }
 
-    document.addEventListener("dragenter", prevent, true)
-    document.addEventListener("dragover", prevent, true)
-    document.addEventListener("drop", prevent, true)
+    window.addEventListener("dragover", prevent)
+    window.addEventListener("drop", prevent)
 
     return () => {
-      document.removeEventListener("dragenter", prevent, true)
-      document.removeEventListener("dragover", prevent, true)
-      document.removeEventListener("drop", prevent, true)
+      window.removeEventListener("dragover", prevent)
+      window.removeEventListener("drop", prevent)
     }
   }, [])
-
-  // ✅ Extra safety: React capture handlers on the root node
-  const preventBrowserDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
 
   const handleFile = async (file) => {
     setLoading(true)
@@ -52,29 +43,7 @@ export default function App() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-zinc-950 text-white"
-      onDragEnterCapture={preventBrowserDrop}
-      onDragOverCapture={preventBrowserDrop}
-      onDropCapture={preventBrowserDrop}
-    >
-      {/* ✅ Hard-catch layer (ensures drop never navigates, even if something else intercepts) */}
-      <div
-        className="fixed inset-0 z-0"
-        onDragEnter={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        }}
-        onDragOver={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        }}
-        onDrop={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        }}
-      />
-
+    <div className="min-h-screen bg-zinc-950 text-white">
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-linear-to-b from-zinc-950 via-zinc-950 to-black" />
@@ -84,7 +53,6 @@ export default function App() {
         <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-size-[48px_48px]" />
       </div>
 
-      {/* ✅ Put all real UI above the hard-catch layer */}
       <div className="relative z-10 mx-auto w-full max-w-368 px-6 py-8 lg:px-10 lg:py-10">
         {/* Header */}
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
