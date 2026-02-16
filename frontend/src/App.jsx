@@ -11,56 +11,24 @@ export default function App() {
   const [error, setError] = useState(null)
   const [accessCode, setAccessCode] = useState("")
 
-  /**
-   * ✅ Hard stop browser navigation on file drop.
-   * MUST be capture + passive:false or Chrome can still navigate.
-   *
-   * Tip: add ?dragdebug=1 to URL to see logs without spamming production.
-   */
-  useEffect(() => {
-    const debug = new URLSearchParams(window.location.search).get("dragdebug") === "1"
+  // ✅ Prevent browser from navigating when dropping files outside drop zone
+useEffect(() => {
+  const log = (e) => {
+    console.log("GLOBAL:", e.type)
+  }
 
-    const prevent = (e) => {
-      // Critical: without this, dropping a file navigates away
-      e.preventDefault()
-    }
+  window.addEventListener("dragenter", log)
+  window.addEventListener("dragover", log)
+  window.addEventListener("dragleave", log)
+  window.addEventListener("drop", log)
 
-    const preventAndDebug = (e) => {
-      e.preventDefault()
-
-      if (!debug) return
-      const dt = e.dataTransfer
-      const types = dt ? Array.from(dt.types || []) : []
-      const itemsLen = dt?.items?.length ?? 0
-      const filesLen = dt?.files?.length ?? 0
-
-      // eslint-disable-next-line no-console
-      console.log(
-        `[DND] ${e.type}`,
-        "target:",
-        e.target?.tagName,
-        "types:",
-        types,
-        "items:",
-        itemsLen,
-        "files:",
-        filesLen
-      )
-    }
-
-    // Capture-phase listeners beat the browser's default navigation
-    window.addEventListener("dragover", preventAndDebug, { capture: true, passive: false })
-    window.addEventListener("drop", preventAndDebug, { capture: true, passive: false })
-
-    // Optional: helps some browsers keep firing drag events consistently
-    window.addEventListener("dragenter", preventAndDebug, { capture: true, passive: false })
-
-    return () => {
-      window.removeEventListener("dragover", preventAndDebug, { capture: true })
-      window.removeEventListener("drop", preventAndDebug, { capture: true })
-      window.removeEventListener("dragenter", preventAndDebug, { capture: true })
-    }
-  }, [])
+  return () => {
+    window.removeEventListener("dragenter", log)
+    window.removeEventListener("dragover", log)
+    window.removeEventListener("dragleave", log)
+    window.removeEventListener("drop", log)
+  }
+}, [])
 
   const handleFile = async (file) => {
     setLoading(true)
