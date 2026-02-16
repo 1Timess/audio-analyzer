@@ -50,6 +50,7 @@ const onDragOver = (e) => {
   e.preventDefault()
   e.stopPropagation()
   e.dataTransfer.dropEffect = unlocked ? "copy" : "none"
+  setIsDragging(true)
 }
 
 const onDragLeave = (e) => {
@@ -67,7 +68,7 @@ const onDrop = (e) => {
   if (!file) return
 
   if (!unlocked) {
-    setIsOpen(true) // optional: prompt for code on drop
+    setIsOpen(true)
     return
   }
 
@@ -77,6 +78,7 @@ const onDrop = (e) => {
   return (
     <>
       <div
+        data-dropzone
         role="button"
         tabIndex={0}
         onClick={handleCardClick}

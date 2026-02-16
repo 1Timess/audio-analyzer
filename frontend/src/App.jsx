@@ -12,19 +12,28 @@ export default function App() {
   const [accessCode, setAccessCode] = useState("")
 
   // ✅ Prevent browser from navigating when dropping files outside drop zone
-  useEffect(() => {
-    const prevent = (e) => {
+useEffect(() => {
+  const handleWindowDrop = (e) => {
+    // If drop happens outside our dropzone, prevent navigation
+    if (!e.target.closest("[data-dropzone]")) {
       e.preventDefault()
     }
+  }
 
-    window.addEventListener("dragover", prevent)
-    window.addEventListener("drop", prevent)
-
-    return () => {
-      window.removeEventListener("dragover", prevent)
-      window.removeEventListener("drop", prevent)
+  const handleWindowDragOver = (e) => {
+    if (!e.target.closest("[data-dropzone]")) {
+      e.preventDefault()
     }
-  }, [])
+  }
+
+  window.addEventListener("dragover", handleWindowDragOver)
+  window.addEventListener("drop", handleWindowDrop)
+
+  return () => {
+    window.removeEventListener("dragover", handleWindowDragOver)
+    window.removeEventListener("drop", handleWindowDrop)
+  }
+}, [])
 
   const handleFile = async (file) => {
     setLoading(true)
