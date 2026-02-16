@@ -12,20 +12,23 @@ export default function App() {
   const [accessCode, setAccessCode] = useState("")
 
   // ✅ Prevent browser from opening dropped files in this tab
-  useEffect(() => {
-    const prevent = (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-    }
+useEffect(() => {
+  const prevent = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
-    window.addEventListener("dragover", prevent)
-    window.addEventListener("drop", prevent)
+  // Capture phase is key: intercept before the browser handles the drop.
+  document.addEventListener("dragenter", prevent, true)
+  document.addEventListener("dragover", prevent, true)
+  document.addEventListener("drop", prevent, true)
 
-    return () => {
-      window.removeEventListener("dragover", prevent)
-      window.removeEventListener("drop", prevent)
-    }
-  }, [])
+  return () => {
+    document.removeEventListener("dragenter", prevent, true)
+    document.removeEventListener("dragover", prevent, true)
+    document.removeEventListener("drop", prevent, true)
+  }
+}, [])
 
   const handleFile = async (file) => {
     setLoading(true)
