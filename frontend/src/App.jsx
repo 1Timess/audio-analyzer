@@ -13,25 +13,20 @@ export default function App() {
 
   // ✅ Prevent browser from navigating when dropping files outside drop zone
 useEffect(() => {
-  const handleWindowDrop = (e) => {
-    // If drop happens outside our dropzone, prevent navigation
-    if (!e.target.closest("[data-dropzone]")) {
-      e.preventDefault()
-    }
+  const log = (e) => {
+    console.log("GLOBAL:", e.type)
   }
 
-  const handleWindowDragOver = (e) => {
-    if (!e.target.closest("[data-dropzone]")) {
-      e.preventDefault()
-    }
-  }
-
-  window.addEventListener("dragover", handleWindowDragOver)
-  window.addEventListener("drop", handleWindowDrop)
+  window.addEventListener("dragenter", log)
+  window.addEventListener("dragover", log)
+  window.addEventListener("dragleave", log)
+  window.addEventListener("drop", log)
 
   return () => {
-    window.removeEventListener("dragover", handleWindowDragOver)
-    window.removeEventListener("drop", handleWindowDrop)
+    window.removeEventListener("dragenter", log)
+    window.removeEventListener("dragover", log)
+    window.removeEventListener("dragleave", log)
+    window.removeEventListener("drop", log)
   }
 }, [])
 
