@@ -58,6 +58,23 @@ export default function App() {
       onDragOverCapture={preventBrowserDrop}
       onDropCapture={preventBrowserDrop}
     >
+      {/* ✅ Hard-catch layer (ensures drop never navigates, even if something else intercepts) */}
+      <div
+        className="fixed inset-0 z-0"
+        onDragEnter={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+      />
+
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-linear-to-b from-zinc-950 via-zinc-950 to-black" />
@@ -67,7 +84,8 @@ export default function App() {
         <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-size-[48px_48px]" />
       </div>
 
-      <div className="mx-auto w-full max-w-368 px-6 py-8 lg:px-10 lg:py-10">
+      {/* ✅ Put all real UI above the hard-catch layer */}
+      <div className="relative z-10 mx-auto w-full max-w-368 px-6 py-8 lg:px-10 lg:py-10">
         {/* Header */}
         <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -104,11 +122,7 @@ export default function App() {
           {/* Left column */}
           <aside className="space-y-6">
             <div className="rounded-3xl border border-zinc-700/60 bg-linear-to-b from-zinc-900/60 to-zinc-950/40 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
-              <UploadCard
-                onFile={handleFile}
-                onCode={setAccessCode}
-                disabled={loading}
-              />
+              <UploadCard onFile={handleFile} onCode={setAccessCode} disabled={loading} />
             </div>
 
             {loading && (
@@ -162,9 +176,7 @@ export default function App() {
         {/* Footer */}
         <footer className="mt-10 flex flex-col gap-2 border-t border-white/5 pt-6 text-xs text-zinc-500 md:flex-row md:items-center md:justify-between">
           <p>Audio Analyzer • EV</p>
-          <p className="text-zinc-600">
-            Metrics are heuristic — treat low-confidence labels as best-effort.
-          </p>
+          <p className="text-zinc-600">Metrics are heuristic — treat low-confidence labels as best-effort.</p>
         </footer>
       </div>
     </div>
