@@ -11,24 +11,29 @@ export default function App() {
   const [error, setError] = useState(null)
   const [accessCode, setAccessCode] = useState("")
 
-  // ✅ Prevent browser from opening dropped files in this tab
-useEffect(() => {
-  const prevent = (e) => {
+  // ✅ Prevent browser from opening dropped files (capture phase)
+  useEffect(() => {
+    const prevent = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    document.addEventListener("dragenter", prevent, true)
+    document.addEventListener("dragover", prevent, true)
+    document.addEventListener("drop", prevent, true)
+
+    return () => {
+      document.removeEventListener("dragenter", prevent, true)
+      document.removeEventListener("dragover", prevent, true)
+      document.removeEventListener("drop", prevent, true)
+    }
+  }, [])
+
+  // ✅ Extra safety: React capture handlers on the root node
+  const preventBrowserDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
   }
-
-  // Capture phase is key: intercept before the browser handles the drop.
-  document.addEventListener("dragenter", prevent, true)
-  document.addEventListener("dragover", prevent, true)
-  document.addEventListener("drop", prevent, true)
-
-  return () => {
-    document.removeEventListener("dragenter", prevent, true)
-    document.removeEventListener("dragover", prevent, true)
-    document.removeEventListener("drop", prevent, true)
-  }
-}, [])
 
   const handleFile = async (file) => {
     setLoading(true)
@@ -47,7 +52,12 @@ useEffect(() => {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div
+      className="min-h-screen bg-zinc-950 text-white"
+      onDragEnterCapture={preventBrowserDrop}
+      onDragOverCapture={preventBrowserDrop}
+      onDropCapture={preventBrowserDrop}
+    >
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-linear-to-b from-zinc-950 via-zinc-950 to-black" />

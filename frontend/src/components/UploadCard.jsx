@@ -40,36 +40,39 @@ export default function UploadCard({ onFile, onCode }) {
 
   // ---------------- Drag & Drop ----------------
 
-  const onDragEnter = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!unlocked) return
-    setIsDragging(true)
+const onDragEnter = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  setIsDragging(true)
+}
+
+const onDragOver = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  e.dataTransfer.dropEffect = unlocked ? "copy" : "none"
+}
+
+const onDragLeave = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  setIsDragging(false)
+}
+
+const onDrop = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  setIsDragging(false)
+
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+
+  if (!unlocked) {
+    setIsOpen(true) // optional: prompt for code on drop
+    return
   }
 
-  const onDragOver = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!unlocked) return
-    setIsDragging(true)
-  }
-
-  const onDragLeave = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
-
-  const onDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-
-    if (!unlocked) return
-
-    const file = e.dataTransfer?.files?.[0]
-    if (file) handleFile(file)
-  }
+  handleFile(file)
+}
 
   return (
     <>
