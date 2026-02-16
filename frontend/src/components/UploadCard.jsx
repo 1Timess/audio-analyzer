@@ -64,15 +64,37 @@ const onDrop = (e) => {
   e.stopPropagation()
   setIsDragging(false)
 
-  const file = e.dataTransfer?.files?.[0]
-  if (!file) return
+  const dt = e.dataTransfer
 
-  if (!unlocked) {
-    setIsOpen(true)
-    return
+  if (!dt) return
+
+  // Prefer items API (more reliable on Windows)
+  if (dt.items && dt.items.length > 0) {
+    for (let i = 0; i < dt.items.length; i++) {
+      const item = dt.items[i]
+      if (item.kind === "file") {
+        const file = item.getAsFile()
+        if (file) {
+          if (!unlocked) {
+            setIsOpen(true)
+            return
+          }
+          handleFile(file)
+          return
+        }
+      }
+    }
   }
 
-  handleFile(file)
+  // Fallback
+  const file = dt.files?.[0]
+  if (file) {
+    if (!unlocked) {
+      setIsOpen(true)
+      return
+    }
+    handleFile(file)
+  }
 }
 
   return (
