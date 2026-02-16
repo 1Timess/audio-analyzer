@@ -6,6 +6,9 @@ from pydub import AudioSegment
 from scipy.signal import find_peaks, butter, filtfilt
 from scipy.cluster.vq import kmeans2, whiten
 
+# NEW: silhouette-based k selection
+from sklearn.metrics import silhouette_score
+
 # -----------------------------
 # Model loading (once)
 # -----------------------------
@@ -246,6 +249,91 @@ def choose_k(num_segments: int) -> int:
     return 4
 
 # -----------------------------
+# NEW: data-driven k selection w/ guardrails
+# -----------------------------
+
+def pick_k_silhouette(
+    Xw: np.ndarray,
+    num_segments: int,
+    min_cluster_size: int = 2,
+    min_improvement: float = 0.04,
+    quality_floor: float = 0.20,
+    hard_k_max: int = 8,
+):
+    """
+    Choose k by silhouette score, but only increase k when there's meaningful improvement.
+    Also prevents cluster explosion via min cluster size + hard cap.
+    Returns: (k: int, meta: dict)
+    """
+    n = int(num_segments)
+    if n < 4:
+        return 1, {"method": "silhouette", "reason": "too_few_segments", "k": 1}
+
+    # Dynamic cap: avoid high k when you don't have enough segments.
+    k_max = min(hard_k_max, max(2, n // min_cluster_size))
+    # Extra conservative: you generally want at least ~3 segments per cluster
+    k_max = min(k_max, max(2, n // 3))
+
+    if k_max < 2:
+        return 1, {"method": "silhouette", "reason": "k_max<2", "k": 1}
+
+    best_k = 1
+    best_score = -1.0
+    accepted_prev = None
+    tried = []
+
+    for k in range(2, k_max + 1):
+        try:
+            _, labels = kmeans2(Xw, k, minit="points")
+        except Exception:
+            tried.append({"k": k, "ok": False, "why": "kmeans_error"})
+            continue
+
+        counts = np.bincount(labels, minlength=k)
+        if np.any(counts < min_cluster_size):
+            tried.append({"k": k, "ok": False, "why": "min_cluster_size"})
+            continue
+
+        if len(set(labels.tolist())) < 2:
+            tried.append({"k": k, "ok": False, "why": "degenerate_labels"})
+            continue
+
+        try:
+            score = float(silhouette_score(Xw, labels, metric="euclidean"))
+        except Exception:
+            tried.append({"k": k, "ok": False, "why": "silhouette_error"})
+            continue
+
+        tried.append({"k": k, "ok": True, "score": score})
+
+        # Only "accept" increases if the improvement is meaningful
+        if accepted_prev is None or (score - accepted_prev) >= min_improvement:
+            if score > best_score:
+                best_score = score
+                best_k = k
+                accepted_prev = score
+
+    # If the best separation is weak, don't pretend grouping is meaningful.
+    if best_k >= 2 and best_score < quality_floor:
+        return 1, {
+            "method": "silhouette",
+            "reason": "quality_floor",
+            "k": 1,
+            "best_score": best_score,
+            "k_max": k_max,
+            "tried": tried,
+        }
+
+    return best_k, {
+        "method": "silhouette",
+        "reason": "selected",
+        "k": best_k,
+        "best_score": best_score,
+        "k_max": k_max,
+        "tried": tried,
+    }
+
+# -----------------------------
 # Segment analysis
 # -----------------------------
 
@@ -339,13 +427,27 @@ def analyze_segments(samples, sr, channels):
         except Exception:
             Xw = X
 
-        k = choose_k(len(segments))
+        # OLD: k = choose_k(len(segments))
+        # NEW: silhouette-based selection w/ guardrails
+        k, grouping_meta = pick_k_silhouette(
+            Xw,
+            num_segments=len(segments),
+            min_cluster_size=2,
+            min_improvement=0.04,
+            quality_floor=0.20,
+            hard_k_max=8,
+        )
 
         # In rare cases, kmeans2 can error if data is degenerate; guard it.
         try:
             _, labels = kmeans2(Xw, k, minit="points")
         except Exception:
             labels = np.zeros((len(segments),), dtype=np.int32)
+            grouping_meta = {
+                "method": "silhouette",
+                "reason": "kmeans_error_fallback",
+                "k": 1,
+            }
 
         for i, s in enumerate(segments):
             s["speaker_id"] = int(labels[i])

@@ -6,10 +6,16 @@ export default function UploadCard({ onFile, onCode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [code, setCode] = useState("")
   const [unlocked, setUnlocked] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   const isValidFormat = useMemo(() => /^\d{5}$/.test(code), [code])
 
   const openPicker = () => inputRef.current?.click()
+
+  const handleFile = (file) => {
+    if (!file) return
+    onFile?.(file)
+  }
 
   const handleCardClick = () => {
     if (unlocked) return openPicker()
@@ -19,7 +25,6 @@ export default function UploadCard({ onFile, onCode }) {
   const submit = () => {
     if (!isValidFormat) return
 
-    // Trust backend to validate. Just store/pass it.
     setUnlocked(true)
     setIsOpen(false)
     onCode?.(code)
@@ -33,6 +38,39 @@ export default function UploadCard({ onFile, onCode }) {
     onCode?.("")
   }
 
+  // ---------------- Drag & Drop ----------------
+
+  const onDragEnter = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!unlocked) return
+    setIsDragging(true)
+  }
+
+  const onDragOver = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!unlocked) return
+    setIsDragging(true)
+  }
+
+  const onDragLeave = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const onDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (!unlocked) return
+
+    const file = e.dataTransfer?.files?.[0]
+    if (file) handleFile(file)
+  }
+
   return (
     <>
       <div
@@ -40,15 +78,27 @@ export default function UploadCard({ onFile, onCode }) {
         tabIndex={0}
         onClick={handleCardClick}
         onKeyDown={(e) => e.key === "Enter" && handleCardClick()}
-        className="cursor-pointer rounded-xl border-2 border-dashed border-zinc-700 bg-zinc-800/40 p-10 text-center transition
-                   hover:border-emerald-400 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className={[
+          "cursor-pointer rounded-xl border-2 border-dashed p-10 text-center transition",
+          "focus:outline-none focus:ring-2 focus:ring-emerald-400",
+          unlocked
+            ? "border-zinc-700 bg-zinc-800/40 hover:border-emerald-400 hover:bg-zinc-800"
+            : "border-zinc-800 bg-zinc-900/40",
+          isDragging && unlocked
+            ? "border-emerald-400 bg-emerald-400/10"
+            : "",
+        ].join(" ")}
       >
         <input
           ref={inputRef}
           type="file"
           accept="audio/*,video/*,.mp4,.mov,.m4a,.aac,.wav,.mp3,.flac,.ogg,.webm"
           hidden
-          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+          onChange={(e) => handleFile(e.target.files?.[0])}
         />
 
         <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/40 px-3 py-1 text-xs text-zinc-300">
@@ -71,12 +121,22 @@ export default function UploadCard({ onFile, onCode }) {
           )}
         </div>
 
-        <p className="mt-4 text-lg font-semibold text-white">Upload audio or video</p>
-        <p className="mt-2 text-sm text-zinc-400">MP3, WAV, M4A, MP4, MOV — click or drop</p>
+        <p className="mt-4 text-lg font-semibold text-white">
+          Upload audio or video
+        </p>
+        <p className="mt-2 text-sm text-zinc-400">
+          MP3, WAV, M4A, MP4, MOV — click or drop
+        </p>
 
         {!unlocked && (
           <p className="mt-4 text-xs text-zinc-500">
             Requires a 5-digit access code to analyze.
+          </p>
+        )}
+
+        {isDragging && unlocked && (
+          <p className="mt-4 text-sm font-medium text-emerald-300">
+            Drop file to analyze
           </p>
         )}
       </div>

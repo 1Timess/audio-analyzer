@@ -38,7 +38,7 @@ export default function AnalysisResult({ result }) {
   }, [segments.length])
 
   return (
-    <div className="mt-6 rounded-3xl border border-zinc-700/60 bg-gradient-to-b from-zinc-900/70 via-zinc-900/55 to-zinc-950/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
+    <div className="mt-6 rounded-3xl border border-zinc-700/60 bg-linear-to-b from-zinc-900/70 via-zinc-900/55 to-zinc-950/60 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
       {/* Glow accents */}
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
         <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -78,7 +78,7 @@ export default function AnalysisResult({ result }) {
         </div>
 
         {rhythm && (
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-zinc-700/70 bg-gradient-to-r from-zinc-950/55 to-zinc-900/35 px-4 py-3 shadow-sm ring-1 ring-white/5">
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-zinc-700/70 bg-linear-to-r from-zinc-950/55 to-zinc-900/35 px-4 py-3 shadow-sm ring-1 ring-white/5">
             <div className="text-sm text-zinc-300">
               <span className="text-zinc-400">Rhythm estimate:</span>{" "}
               <span className="font-semibold text-white">{rhythm}</span>
@@ -133,7 +133,7 @@ export default function AnalysisResult({ result }) {
                   return (
                     <div
                       key={sp.speaker_id}
-                      className="group rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/30 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+                      className="group rounded-3xl border border-zinc-700/70 bg-linear-to-b from-zinc-950/55 to-zinc-900/30 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -222,7 +222,7 @@ export default function AnalysisResult({ result }) {
                       className={[
                         "group relative w-full text-left rounded-2xl border px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-emerald-400/40",
                         selected
-                          ? "border-emerald-400/70 bg-gradient-to-b from-emerald-400/15 to-zinc-950/30 shadow-[0_8px_20px_rgba(16,185,129,0.12)]"
+                          ? "border-emerald-400/70 bg-linear-to-b from-emerald-400/15 to-zinc-950/30 shadow-[0_8px_20px_rgba(16,185,129,0.12)]"
                           : "border-zinc-700/70 bg-zinc-950/35 hover:bg-zinc-950/55 hover:border-zinc-600/80",
                       ].join(" ")}
                     >
@@ -230,7 +230,7 @@ export default function AnalysisResult({ result }) {
                       <span
                         className={[
                           "pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition",
-                          "bg-gradient-to-r from-white/0 via-white/5 to-white/0",
+                          "bg-linear-to-r from-white/0 via-white/5 to-white/0",
                           selected ? "opacity-100" : "group-hover:opacity-100",
                         ].join(" ")}
                       />
@@ -283,7 +283,7 @@ export default function AnalysisResult({ result }) {
             </div>
 
             {/* Segment detail */}
-            <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5">
+            <div className="rounded-3xl border border-zinc-700/70 bg-linear-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-white">
@@ -409,7 +409,7 @@ function formatDistanceRange(range) {
 /* ----------------- UI primitives ----------------- */
 
 function Divider() {
-  return <div className="mt-5 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+  return <div className="mt-5 h-px w-full bg-linear-to-r from-transparent via-white/10 to-transparent" />
 }
 
 function Section({ title, subtitle, children }) {
@@ -437,7 +437,7 @@ function Panel({ title, children }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="group rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
+    <div className="group rounded-2xl border border-zinc-700/70 bg-linear-to-b from-zinc-950/55 to-zinc-900/25 p-4 shadow-sm ring-1 ring-white/5 transition hover:-translate-y-0.5 hover:border-zinc-600/80 hover:shadow-[0_12px_28px_rgba(0,0,0,0.35)]">
       <p className="text-xs uppercase tracking-wide text-zinc-400">{label}</p>
       <p className="mt-1 text-lg font-semibold text-white tracking-tight">{value ?? "—"}</p>
     </div>
@@ -546,7 +546,7 @@ function Meter({ value, label }) {
       </div>
       <div className="mt-2 h-2.5 w-full rounded-full bg-zinc-800/80 overflow-hidden ring-1 ring-white/5">
         <div
-          className={`h-full rounded-full bg-gradient-to-r ${barTone} transition-[width] duration-500`}
+          className={`h-full rounded-full bg-linear-to-r ${barTone} transition-[width] duration-500`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>
