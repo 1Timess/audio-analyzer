@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import UploadCard from "./components/UploadCard"
 import AnalysisResult from "./components/AnalysisResult"
 import Loader from "./components/Loader"
@@ -9,7 +9,23 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
-  const [accessCode, setAccessCode] = useState("")   // ✅ add
+  const [accessCode, setAccessCode] = useState("")
+
+  // ✅ Prevent browser from opening dropped files in this tab
+  useEffect(() => {
+    const prevent = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    window.addEventListener("dragover", prevent)
+    window.addEventListener("drop", prevent)
+
+    return () => {
+      window.removeEventListener("dragover", prevent)
+      window.removeEventListener("drop", prevent)
+    }
+  }, [])
 
   const handleFile = async (file) => {
     setLoading(true)
@@ -17,7 +33,7 @@ export default function App() {
     setResult(null)
 
     try {
-      const data = await analyzeAudio(file, accessCode)  // ✅ pass it
+      const data = await analyzeAudio(file, accessCode)
       setResult(data)
     } catch (err) {
       console.error(err)
@@ -77,7 +93,7 @@ export default function App() {
             <div className="rounded-3xl border border-zinc-700/60 bg-linear-to-b from-zinc-900/60 to-zinc-950/40 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
               <UploadCard
                 onFile={handleFile}
-                onCode={setAccessCode}     // ✅ capture code
+                onCode={setAccessCode}
                 disabled={loading}
               />
             </div>
