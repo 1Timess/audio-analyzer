@@ -10,30 +10,32 @@ export default function App() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [accessCode, setAccessCode] = useState("")
+  const [currentFileSize, setCurrentFileSize] = useState(null)
 
-  // ✅ Prevent browser from navigating when dropping files outside drop zone
-useEffect(() => {
-  const log = (e) => {
-    console.log("GLOBAL:", e.type)
-  }
+  // Prevent browser from navigating when dropping files outside drop zone
+  useEffect(() => {
+    const log = (e) => {
+      console.log("GLOBAL:", e.type)
+    }
 
-  window.addEventListener("dragenter", log)
-  window.addEventListener("dragover", log)
-  window.addEventListener("dragleave", log)
-  window.addEventListener("drop", log)
+    window.addEventListener("dragenter", log)
+    window.addEventListener("dragover", log)
+    window.addEventListener("dragleave", log)
+    window.addEventListener("drop", log)
 
-  return () => {
-    window.removeEventListener("dragenter", log)
-    window.removeEventListener("dragover", log)
-    window.removeEventListener("dragleave", log)
-    window.removeEventListener("drop", log)
-  }
-}, [])
+    return () => {
+      window.removeEventListener("dragenter", log)
+      window.removeEventListener("dragover", log)
+      window.removeEventListener("dragleave", log)
+      window.removeEventListener("drop", log)
+    }
+  }, [])
 
   const handleFile = async (file) => {
     setLoading(true)
     setError(null)
     setResult(null)
+    setCurrentFileSize(file?.size ?? null)
 
     try {
       const data = await analyzeAudio(file, accessCode)
@@ -94,12 +96,16 @@ useEffect(() => {
           {/* Left column */}
           <aside className="space-y-6">
             <div className="rounded-3xl border border-zinc-700/60 bg-linear-to-b from-zinc-900/60 to-zinc-950/40 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.35)] ring-1 ring-white/5">
-              <UploadCard onFile={handleFile} onCode={setAccessCode} disabled={loading} />
+              <UploadCard
+                onFile={handleFile}
+                onCode={setAccessCode}
+                disabled={loading}
+              />
             </div>
 
             {loading && (
               <div className="rounded-3xl border border-zinc-700/60 bg-zinc-950/30 p-4 ring-1 ring-white/5">
-                <Loader />
+                <Loader fileSizeBytes={currentFileSize} done={!loading} />
               </div>
             )}
 
@@ -148,7 +154,9 @@ useEffect(() => {
         {/* Footer */}
         <footer className="mt-10 flex flex-col gap-2 border-t border-white/5 pt-6 text-xs text-zinc-500 md:flex-row md:items-center md:justify-between">
           <p>Audio Analyzer • EV</p>
-          <p className="text-zinc-600">Metrics are heuristic — treat low-confidence labels as best-effort.</p>
+          <p className="text-zinc-600">
+            Metrics are heuristic — treat low-confidence labels as best-effort.
+          </p>
         </footer>
       </div>
     </div>

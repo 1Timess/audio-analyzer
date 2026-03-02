@@ -18,21 +18,11 @@ function formatEta(ms) {
 
 /**
  * Normalize input size to bytes.
- * - Accepts bytes (number)
- * - If caller accidentally passes KB, we auto-correct in a safe way
- * - If invalid, returns null
- *
- * Heuristic:
- *   - Anything under ~50 million that *looks* like KB (e.g., 27000 for "27,000KB")
- *     is very likely KB, not bytes.
  */
 function normalizeBytes(size) {
   if (!Number.isFinite(size) || size <= 0) return null
 
-  // If the number is "small" but would be a very common KB magnitude, treat as KB.
-  // Example: 27000 (27,000 KB) is not a realistic byte count for audio uploads.
   if (size < 50_000_000 && size >= 1_000) {
-    // If it's divisible-ish by 1024 or looks like rounded KB, assume KB.
     const looksLikeKb = size % 1024 === 0 || size > 10_000
     if (looksLikeKb) return size * 1024
   }
@@ -41,60 +31,44 @@ function normalizeBytes(size) {
 }
 
 /**
- * Estimate analysis time from file size.
- *
- * Your real-world anchors (approx):
- * - ~100 KB: instant
- * - ~3 MB: up to ~20s
- * - ~10 MB: ~1–2m
- * - ~27 MB: ~1m+
- * - ~1 GB: ~1h
- *
- * Use a piecewise curve:
- * - small: quick linear-ish
- * - medium: steeper (superlinear)
- * - huge: very steep (to reflect memory/IO/segment explosion)
+ * Throughput model (MB/sec)
+ * Default calibrated for heavy CPU inference (~1GB ≈ 1 hour)
+ */
+const DEFAULT_MB_PER_SEC = 0.28
+
+function getObservedThroughput() {
+  const stored = localStorage.getItem("analysis_mb_per_sec")
+  const parsed = parseFloat(stored)
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MB_PER_SEC
+}
+
+/**
+ * Estimate total analysis time based on file size
+ * using observed throughput instead of arbitrary curves.
  */
 function estimateMsFromBytes(rawSize) {
   const bytes = normalizeBytes(rawSize)
   if (!bytes) return 2500
 
   const mb = bytes / (1024 * 1024)
+  const mbPerSec = getObservedThroughput()
 
-  // Baseline overhead (decode/setup)
-  const baseMs = 1200
+  const seconds = mb / mbPerSec
 
-  let seconds
+  // Baseline decode / warmup overhead
+  const baseMs = 2000
 
-  if (mb <= 1) {
-    // Tiny files: basically instant, but never 0
-    // 0–1MB => ~1–4s
-    seconds = 1 + 3 * mb
-  } else if (mb <= 30) {
-    // Medium: matches your 3MB->~20s, 10MB->~1-2m, 27MB->~1m+
-    // Power curve tuned for mid-range
-    const p = 1.35
-    const a = 5.2 // coefficient in seconds
-    seconds = a * Math.pow(mb, p)
-  } else {
-    // Large: escalates harder, aiming for ~1GB ~ 1 hour
-    // Use a higher exponent above 30MB to reflect heavy scaling costs
-    const p = 1.55
-    const a = 1.9
-    seconds = a * Math.pow(mb, p)
-  }
-
-  const ms = seconds * 1000 + baseMs
-
-  // Floors/caps for UX sanity
-  // - Don’t claim sub-5s unless truly tiny (< ~300KB)
-  const minMs = mb < 0.3 ? 300 : 5_000
-
-  return clamp(ms, minMs, 6 * 60 * 60 * 1000) // up to 6h
+  return clamp(seconds * 1000 + baseMs, 5000, 6 * 60 * 60 * 1000)
 }
 
 export default function Loader({ fileSizeBytes, done = false }) {
-  const estMs = useMemo(() => estimateMsFromBytes(fileSizeBytes), [fileSizeBytes])
+  const estMs = useMemo(
+    () => estimateMsFromBytes(fileSizeBytes),
+    [fileSizeBytes]
+  )
+
   const etaLabel = useMemo(() => formatEta(estMs), [estMs])
 
   const [progress, setProgress] = useState(0)
@@ -109,16 +83,18 @@ export default function Loader({ fileSizeBytes, done = false }) {
       const elapsed = now - startRef.current
       const t = clamp(elapsed / estMs, 0, 1)
 
-      // Two-phase easing:
-      // - Fast to ~70%
-      // - Slow creep to ~95%
+      // Slow early ramp for large jobs
+      const isLargeJob = estMs > 5 * 60 * 1000
+      const slowStartFactor = isLargeJob ? 0.4 : 0.6
+
       let eased
-      if (t < 0.6) {
-        const tt = t / 0.6
-        eased = 0.7 * (1 - Math.pow(1 - tt, 3))
+
+      if (t < slowStartFactor) {
+        const tt = t / slowStartFactor
+        eased = 0.6 * (1 - Math.pow(1 - tt, 2.5))
       } else {
-        const tt = (t - 0.6) / 0.4
-        eased = 0.7 + 0.25 * (1 - Math.pow(1 - tt, 2))
+        const tt = (t - slowStartFactor) / (1 - slowStartFactor)
+        eased = 0.6 + 0.35 * (1 - Math.pow(1 - tt, 1.8))
       }
 
       const target = done ? 1 : 0.95
@@ -134,6 +110,7 @@ export default function Loader({ fileSizeBytes, done = false }) {
     }
 
     rafRef.current = requestAnimationFrame(tick)
+
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
@@ -142,7 +119,9 @@ export default function Loader({ fileSizeBytes, done = false }) {
   const prettySize = useMemo(() => {
     const bytes = normalizeBytes(fileSizeBytes)
     if (!bytes) return null
+
     const mb = bytes / (1024 * 1024)
+
     if (mb < 1) return `${Math.round(bytes / 1024)} KB`
     if (mb < 1024) return `${mb.toFixed(1)} MB`
     return `${(mb / 1024).toFixed(2)} GB`
@@ -164,11 +143,13 @@ export default function Loader({ fileSizeBytes, done = false }) {
             ({prettySize ?? "file"} · {etaLabel})
           </span>
         </p>
-        <p className="text-zinc-500">{Math.round(progress * 100)}%</p>
+        <p className="text-zinc-500">
+          {Math.round(progress * 100)}%
+        </p>
       </div>
 
       <p className="text-xs text-zinc-500">
-        Estimate based on file size — actual time varies with device performance and audio content.
+        Estimate adapts over time based on real processing speed.
       </p>
     </div>
   )
