@@ -104,13 +104,13 @@ def estimate_distance_bucket_ft(rms: float, channels: int):
 # Audio loading
 # -----------------------------
 
-def load_audio(file_bytes: bytes):
-    audio = AudioSegment.from_file(io.BytesIO(file_bytes))
+def load_audio_from_path(path: str):
+    audio = AudioSegment.from_file(path)
+
     audio = (
         audio
         .set_frame_rate(16000)
         .set_sample_width(2)
-        # Preserve stereo if present; otherwise mono.
         .set_channels(2 if audio.channels == 2 else 1)
     )
 
@@ -526,9 +526,11 @@ def encode_clip(samples, sr, channels):
 # Public API
 # -----------------------------
 
-def analyze_audio(file_bytes: bytes):
-    samples, sr, channels = load_audio(file_bytes)
+def analyze_audio_from_path(path: str):
+
+    samples, sr, channels = load_audio_from_path(path)
     segments, speaker_profiles = analyze_segments(samples, sr, channels)
+
     return {
         "sample_rate": sr,
         "channels": channels,
