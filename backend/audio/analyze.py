@@ -8,6 +8,7 @@ import torch
 from pydub import AudioSegment
 from scipy.signal import find_peaks, butter, filtfilt
 from scipy.cluster.vq import kmeans2, whiten
+import soundfile as sf
 
 # NEW: silhouette-based k selection
 from sklearn.metrics import silhouette_score
@@ -25,6 +26,9 @@ TARGET_SAMPLE_WIDTH = 2  # 16-bit
 ENABLE_CLIP_BASE64 = False
 MAX_CLIPS_BASE64 = 12
 MAX_CLIP_SECONDS = 2.0
+# NEW HARD CAPS
+MAX_PITCH_SECONDS = 2.0
+MAX_CLUSTER_SEGMENTS = 1000
 
 
 # -----------------------------
@@ -175,34 +179,29 @@ def load_audio_from_path(path: str):
     """
     Video-safe loader:
     - Uses ffmpeg to extract audio to a temporary WAV (local, private).
-    - Forces mono 16kHz 16-bit to reduce memory and stabilize processing.
+    - Loads using soundfile instead of AudioSegment to avoid full in-memory decode explosion.
     - Keeps return signature identical: (samples, sr, channels)
     """
     wav_path = None
     try:
-        # Always extract with ffmpeg. This is the key integration for large videos.
         wav_path = extract_audio_to_wav(path, sr=TARGET_SR, channels=TARGET_CHANNELS)
 
-        audio = AudioSegment.from_wav(wav_path)
-        audio = (
-            audio
-            .set_frame_rate(TARGET_SR)
-            .set_sample_width(TARGET_SAMPLE_WIDTH)
-            .set_channels(TARGET_CHANNELS)
-        )
+        with sf.SoundFile(wav_path) as f:
+            sr = f.samplerate
+            channels = f.channels
+            samples = f.read(dtype="float32")
 
-        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
-        samples = samples.reshape(-1, TARGET_CHANNELS)
-        samples /= 32768.0
+        if channels == 1:
+            samples = samples.reshape(-1, 1)
 
-        return samples, TARGET_SR, TARGET_CHANNELS
+        return samples, sr, channels
+
     finally:
         if wav_path:
             try:
                 os.remove(wav_path)
             except Exception:
                 pass
-
 
 # -----------------------------
 # Feature helpers
@@ -215,30 +214,33 @@ def bandpass_filter(x, sr, low=70, high=350):
 
 def estimate_pitch(seg, sr, fmin=70.0, fmax=300.0):
     mono = seg.mean(axis=1).astype(np.float32)
+
+    # NEW: hard cap pitch analysis window to prevent O(n^2) explosion
+    max_len = int(sr * MAX_PITCH_SECONDS)
+    if len(mono) > max_len:
+        mono = mono[:max_len]
+
     mono -= float(mono.mean())
 
-    # Need enough samples for low pitches (at least a few periods of ~70 Hz)
-    if len(mono) < int(sr * 0.12):  # ~120ms
+    # Need enough samples for low pitches (~120ms minimum)
+    if len(mono) < int(sr * 0.12):
         return None
 
-    # Bandpass only if the segment is long enough for filtfilt to behave
     try:
         mono = bandpass_filter(mono, sr, low=fmin, high=fmax)
     except Exception:
         return None
 
-    # Autocorrelation (biased but OK for this use)
     corr = np.correlate(mono, mono, mode="full")[len(mono)-1:]
 
-    # Limit lag search to F0 range
     min_lag = int(sr / fmax)
     max_lag = int(sr / fmin)
+
     if max_lag <= min_lag + 2 or max_lag >= len(corr):
         return None
 
     corr_slice = corr[min_lag:max_lag]
 
-    # Optional: ignore tiny signals / flat correlation
     if not np.isfinite(corr_slice).all() or np.max(corr_slice) <= 0:
         return None
 
@@ -247,6 +249,7 @@ def estimate_pitch(seg, sr, fmin=70.0, fmax=300.0):
 
     if pitch and fmin <= pitch <= fmax:
         return float(pitch)
+
     return None
 
 
@@ -511,12 +514,17 @@ def analyze_segments(samples, sr, channels):
     for s in segments:
         s["rhythm_estimate"] = rhythm
 
-    # -----------------------------
+ # -----------------------------
     # Speaker grouping (k-means clustering)
     # -----------------------------
     speaker_profiles = []
     if len(segments) >= 2:
-        X = np.vstack(voice_feats)
+        # NEW: cap clustering dataset size to prevent memory blow-up
+        if len(voice_feats) > MAX_CLUSTER_SEGMENTS:
+            idx = np.linspace(0, len(voice_feats) - 1, MAX_CLUSTER_SEGMENTS).astype(int)
+            X = np.vstack([voice_feats[i] for i in idx])
+        else:
+            X = np.vstack(voice_feats)
 
         # Normalize feature scales for kmeans
         try:
@@ -525,9 +533,10 @@ def analyze_segments(samples, sr, channels):
             Xw = X
 
         # NEW: silhouette-based selection w/ guardrails
+        # IMPORTANT: num_segments should match the rows in Xw (after capping)
         k, grouping_meta = pick_k_silhouette(
             Xw,
-            num_segments=len(segments),
+            num_segments=len(Xw),
             min_cluster_size=2,
             min_improvement=0.04,
             quality_floor=0.20,
