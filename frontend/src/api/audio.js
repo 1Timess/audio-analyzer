@@ -1,13 +1,11 @@
 import axios from "axios"
 
 export async function analyzeAudio(file, accessCode) {
-  const res = await axios.post("/analyze", file, {
-    headers: {
-      "Content-Type": file.type || "application/octet-stream",
-      "X-Analysis-Code": accessCode,
-    },
-    maxBodyLength: Infinity,
-    maxContentLength: Infinity,
+  const form = new FormData()
+  form.append("file", file)
+
+  const res = await axios.post("/analyze", form, {
+    headers: { "X-Analysis-Code": accessCode },
   })
 
   return res.data
