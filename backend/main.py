@@ -3,7 +3,7 @@ import shutil
 from tempfile import NamedTemporaryFile
 from typing import Annotated
 
-from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from audio.analyze import analyze_audio_from_path
@@ -24,16 +24,17 @@ app.add_middleware(
 
 @app.post("/analyze")
 async def analyze(
-    file: UploadFile = File(...),
+    request: Request,
     x_analysis_code: Annotated[str | None, Header(alias="X-Analysis-Code")] = None,
 ):
     if x_analysis_code != ANALYSIS_CODE:
         raise HTTPException(status_code=403, detail="Invalid analysis code")
 
-    # 🔥 Stream upload directly to disk instead of loading into memory
     with NamedTemporaryFile(delete=False) as tmp:
-        shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
+
+        async for chunk in request.stream():
+            tmp.write(chunk)
 
     try:
         result = analyze_audio_from_path(tmp_path)
