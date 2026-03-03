@@ -1,5 +1,8 @@
+import os
 import io
 import base64
+import tempfile
+import subprocess
 import numpy as np
 import torch
 from pydub import AudioSegment
@@ -8,6 +11,21 @@ from scipy.cluster.vq import kmeans2, whiten
 
 # NEW: silhouette-based k selection
 from sklearn.metrics import silhouette_score
+
+# ============================================================
+# Config (safe defaults for large video inputs)
+# ============================================================
+
+TARGET_SR = 16000
+TARGET_CHANNELS = 1  # Force mono for stability + memory (video audio often stereo)
+TARGET_SAMPLE_WIDTH = 2  # 16-bit
+
+# Returning base64 audio clips inside JSON is a huge payload + RAM spike.
+# Keep the pipeline intact by still providing the field, but disable by default.
+ENABLE_CLIP_BASE64 = False
+MAX_CLIPS_BASE64 = 12
+MAX_CLIP_SECONDS = 2.0
+
 
 # -----------------------------
 # Model loading (once)
@@ -21,12 +39,14 @@ vad_model, vad_utils = torch.hub.load(
 
 get_speech_timestamps = vad_utils[0]
 
+
 # -----------------------------
 # Small utils
 # -----------------------------
 
 def clamp01(x: float) -> float:
     return float(np.clip(x, 0.0, 1.0))
+
 
 def direction_from_balance(balance_val: float) -> str:
     # balance_val expected in [-1, 1]
@@ -35,6 +55,7 @@ def direction_from_balance(balance_val: float) -> str:
     if balance_val > 0.2:
         return "right"
     return "center"
+
 
 def estimate_direction_confidence(balance_val: float, rms: float, duration: float, channels: int) -> float:
     """
@@ -52,6 +73,7 @@ def estimate_direction_confidence(balance_val: float, rms: float, duration: floa
     loudness = clamp01((rms - 0.01) / 0.06)
     dur = clamp01((duration - 0.25) / 1.0)
     return clamp01(0.55 * bal_strength + 0.30 * loudness + 0.15 * dur)
+
 
 def estimate_distance_bucket_ft(rms: float, channels: int):
     """
@@ -100,29 +122,87 @@ def estimate_distance_bucket_ft(rms: float, channels: int):
 
     return (label, rng, float(clamp01(conf)), note)
 
+
 # -----------------------------
-# Audio loading
+# Audio loading (video-safe)
 # -----------------------------
+
+def _ensure_ffmpeg_available():
+    """
+    Fail fast with a clear error if ffmpeg isn't installed/available in PATH.
+    """
+    try:
+        subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        raise RuntimeError(
+            "ffmpeg is required to process video inputs. Install ffmpeg and ensure it's in PATH."
+        ) from e
+
+
+def extract_audio_to_wav(video_path: str, sr: int = TARGET_SR, channels: int = TARGET_CHANNELS) -> str:
+    """
+    Local (server-side) extraction of audio from video into a temp WAV.
+    Keeps video private (no third-party service) and reduces decode complexity.
+
+    NOTE:
+    - This does NOT guarantee constant memory usage (we still load WAV after),
+      but it avoids pydub decoding the *video container* directly, which is a common failure mode.
+    """
+    _ensure_ffmpeg_available()
+
+    fd, wav_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", video_path,
+        "-vn",                    # drop video stream
+        "-ac", str(channels),     # mono
+        "-ar", str(sr),           # 16k
+        "-acodec", "pcm_s16le",   # 16-bit PCM WAV
+        wav_path
+    ]
+
+    # Let stderr flow to logs if you prefer; suppressing keeps your service logs cleaner.
+    # If you're debugging, remove stderr suppression.
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    return wav_path
+
 
 def load_audio_from_path(path: str):
-    audio = AudioSegment.from_file(path)
+    """
+    Video-safe loader:
+    - Uses ffmpeg to extract audio to a temporary WAV (local, private).
+    - Forces mono 16kHz 16-bit to reduce memory and stabilize processing.
+    - Keeps return signature identical: (samples, sr, channels)
+    """
+    wav_path = None
+    try:
+        # Always extract with ffmpeg. This is the key integration for large videos.
+        wav_path = extract_audio_to_wav(path, sr=TARGET_SR, channels=TARGET_CHANNELS)
 
-    audio = (
-        audio
-        .set_frame_rate(16000)
-        .set_sample_width(2)
-        .set_channels(2 if audio.channels == 2 else 1)
-    )
+        audio = AudioSegment.from_wav(wav_path)
+        audio = (
+            audio
+            .set_frame_rate(TARGET_SR)
+            .set_sample_width(TARGET_SAMPLE_WIDTH)
+            .set_channels(TARGET_CHANNELS)
+        )
 
-    samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+        samples = samples.reshape(-1, TARGET_CHANNELS)
+        samples /= 32768.0
 
-    if audio.channels == 2:
-        samples = samples.reshape(-1, 2)
-    else:
-        samples = samples.reshape(-1, 1)
+        return samples, TARGET_SR, TARGET_CHANNELS
+    finally:
+        if wav_path:
+            try:
+                os.remove(wav_path)
+            except Exception:
+                pass
 
-    samples /= 32768.0
-    return samples, audio.frame_rate, audio.channels
 
 # -----------------------------
 # Feature helpers
@@ -131,6 +211,7 @@ def load_audio_from_path(path: str):
 def bandpass_filter(x, sr, low=70, high=350):
     b, a = butter(4, [low / (sr / 2), high / (sr / 2)], btype="band")
     return filtfilt(b, a, x)
+
 
 def estimate_pitch(seg, sr, fmin=70.0, fmax=300.0):
     mono = seg.mean(axis=1).astype(np.float32)
@@ -168,6 +249,7 @@ def estimate_pitch(seg, sr, fmin=70.0, fmax=300.0):
         return float(pitch)
     return None
 
+
 def estimate_syllables(seg, sr):
     mono = seg.mean(axis=1)
     rms = np.sqrt(np.mean(mono ** 2))
@@ -178,6 +260,7 @@ def estimate_syllables(seg, sr):
     env = np.convolve(env, np.ones(int(sr * 0.01)) / int(sr * 0.01), mode="same")
     peaks, _ = find_peaks(env, height=max(0.02, rms * 0.5), distance=sr * 0.05)
     return len(peaks)
+
 
 # --- Speaker grouping helpers (heuristic, NOT demographics) ---
 
@@ -190,6 +273,7 @@ def pitch_bucket(p):
         return ("mid", 0.6)
     return ("high", 0.6)
 
+
 def tempo_bucket(r):
     if r is None or not np.isfinite(r):
         return ("unknown", 0.0)
@@ -198,6 +282,7 @@ def tempo_bucket(r):
     if r < 6.5:
         return ("medium", 0.55)
     return ("fast", 0.55)
+
 
 def spectral_centroid(mono: np.ndarray, sr: int) -> float:
     mono = mono.astype(np.float32)
@@ -210,6 +295,7 @@ def spectral_centroid(mono: np.ndarray, sr: int) -> float:
     freqs = np.fft.rfftfreq(len(x), d=1.0 / sr)
     mag_sum = float(np.sum(spec)) + 1e-9
     return float(np.sum(freqs * spec) / mag_sum)
+
 
 def spectral_rolloff(mono: np.ndarray, sr: int, roll_percent: float = 0.85) -> float:
     mono = mono.astype(np.float32)
@@ -227,6 +313,7 @@ def spectral_rolloff(mono: np.ndarray, sr: int, roll_percent: float = 0.85) -> f
     idx = min(max(idx, 0), len(freqs) - 1)
     return float(freqs[idx])
 
+
 def segment_voice_features(seg_samples: np.ndarray, sr: int, pitch_hz, rms: float, syllable_rate: float):
     mono = seg_samples.mean(axis=1).astype(np.float32)
     sc = spectral_centroid(mono, sr)
@@ -238,6 +325,7 @@ def segment_voice_features(seg_samples: np.ndarray, sr: int, pitch_hz, rms: floa
     # Feature vector: [pitch, has_pitch, rms, tempo-ish, brightness, rolloff]
     return np.array([p, has_pitch, float(rms), float(syllable_rate), sc, ro], dtype=np.float32)
 
+
 def choose_k(num_segments: int) -> int:
     # Conservative to avoid silly speaker counts on short clips
     if num_segments < 4:
@@ -247,6 +335,7 @@ def choose_k(num_segments: int) -> int:
     if num_segments < 20:
         return 3
     return 4
+
 
 # -----------------------------
 # NEW: data-driven k selection w/ guardrails
@@ -333,6 +422,7 @@ def pick_k_silhouette(
         "tried": tried,
     }
 
+
 # -----------------------------
 # Segment analysis
 # -----------------------------
@@ -386,6 +476,12 @@ def analyze_segments(samples, sr, channels):
         vf = segment_voice_features(seg_samples, sr, pitch, rms, rate)
         voice_feats.append(vf)
 
+        # Preserve field shape, but avoid enormous payloads unless explicitly enabled.
+        clip_field = None
+        if ENABLE_CLIP_BASE64 and len(segments) < MAX_CLIPS_BASE64:
+            max_len = int(sr * MAX_CLIP_SECONDS)
+            clip_field = encode_clip(seg_samples[:max_len], sr, channels)
+
         segments.append({
             "start": start / sr,
             "end": end / sr,
@@ -407,7 +503,8 @@ def analyze_segments(samples, sr, channels):
             "distance_confidence": float(dist_conf),
             "spatial_note": dist_note,
 
-            "clip_base64": encode_clip(seg_samples, sr, channels),
+            # Keep key in pipeline, but make it safe
+            "clip_base64": clip_field,
         })
 
     rhythm = estimate_rhythm(syllable_rates)
@@ -427,7 +524,6 @@ def analyze_segments(samples, sr, channels):
         except Exception:
             Xw = X
 
-        # OLD: k = choose_k(len(segments))
         # NEW: silhouette-based selection w/ guardrails
         k, grouping_meta = pick_k_silhouette(
             Xw,
@@ -492,6 +588,7 @@ def analyze_segments(samples, sr, channels):
 
     return segments, speaker_profiles
 
+
 # -----------------------------
 # Rhythm
 # -----------------------------
@@ -505,6 +602,7 @@ def estimate_rhythm(rates):
     if avg < 5.2:
         return "Stress-timed"
     return "Mixed"
+
 
 # -----------------------------
 # Audio export
@@ -522,12 +620,19 @@ def encode_clip(samples, sr, channels):
     audio.export(buf, format="wav")
     return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode()
 
+
 # -----------------------------
 # Public API
 # -----------------------------
 
 def analyze_audio_from_path(path: str):
-
+    """
+    Pipeline stays intact:
+    - loads audio
+    - segments with VAD
+    - computes features + speaker grouping
+    - returns same output schema
+    """
     samples, sr, channels = load_audio_from_path(path)
     segments, speaker_profiles = analyze_segments(samples, sr, channels)
 
