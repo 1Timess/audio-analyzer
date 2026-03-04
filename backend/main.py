@@ -10,7 +10,7 @@ from audio.analyze import analyze_audio_from_path
 
 app = FastAPI()
 
-ANALYSIS_CODE = os.getenv("ANALYSIS_CODE", "12345")
+ANALYSIS_CODE = os.getenv("ANALYSIS_CODE", "83427")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.post("/analyze")
 async def analyze(
     file: UploadFile = File(...),
@@ -30,16 +31,24 @@ async def analyze(
     if x_analysis_code != ANALYSIS_CODE:
         raise HTTPException(status_code=403, detail="Invalid analysis code")
 
-    # 🔥 Stream upload directly to disk instead of loading into memory
-    with NamedTemporaryFile(delete=False) as tmp:
+    # Preserve original extension so ffmpeg can reliably detect format
+    suffix = os.path.splitext(file.filename or "")[1] or ".tmp"
+
+    with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        temp_path = tmp.name
+
+        # Safely stream the uploaded file from FastAPI's internal temp buffer to disk
         shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
+
+        tmp.flush()
+        os.fsync(tmp.fileno())
 
     try:
-        result = analyze_audio_from_path(tmp_path)
+        print("TEMP FILE SIZE:", os.path.getsize(temp_path))
+        result = analyze_audio_from_path(temp_path)
         return result
     finally:
         try:
-            os.remove(tmp_path)
+            os.remove(temp_path)
         except Exception:
             pass

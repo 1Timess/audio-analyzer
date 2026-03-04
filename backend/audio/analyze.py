@@ -35,13 +35,20 @@ MAX_CLUSTER_SEGMENTS = 1000
 # Model loading (once)
 # -----------------------------
 
-vad_model, vad_utils = torch.hub.load(
-    "snakers4/silero-vad",
-    "silero_vad",
-    trust_repo=True
-)
+vad_model = None
+vad_utils = None
 
-get_speech_timestamps = vad_utils[0]
+def get_vad():
+    global vad_model, vad_utils
+
+    if vad_model is None:
+        vad_model, vad_utils = torch.hub.load(
+            "snakers4/silero-vad",
+            "silero_vad",
+            trust_repo=True
+        )
+
+    return vad_model, vad_utils
 
 
 # -----------------------------
@@ -143,65 +150,65 @@ def _ensure_ffmpeg_available():
         ) from e
 
 
-def extract_audio_to_wav(video_path: str, sr: int = TARGET_SR, channels: int = TARGET_CHANNELS) -> str:
+def extract_audio_to_array(video_path: str, sr: int = TARGET_SR, channels: int = TARGET_CHANNELS):
     """
-    Local (server-side) extraction of audio from video into a temp WAV.
-    Keeps video private (no third-party service) and reduces decode complexity.
-
-    NOTE:
-    - This does NOT guarantee constant memory usage (we still load WAV after),
-      but it avoids pydub decoding the *video container* directly, which is a common failure mode.
+    Extract audio from video directly into a numpy array using ffmpeg pipe.
+    Avoids writing huge intermediate WAV files.
     """
     _ensure_ffmpeg_available()
 
-    fd, wav_path = tempfile.mkstemp(suffix=".wav")
-    os.close(fd)
-
     cmd = [
         "ffmpeg",
-        "-y",
         "-i", video_path,
-        "-vn",                    # drop video stream
-        "-ac", str(channels),     # mono
-        "-ar", str(sr),           # 16k
-        "-acodec", "pcm_s16le",   # 16-bit PCM WAV
-        wav_path
+        "-vn",
+        "-ac", str(channels),
+        "-ar", str(sr),
+        "-f", "f32le",      # raw float32 output
+        "pipe:1"
     ]
 
-    # Let stderr flow to logs if you prefer; suppressing keeps your service logs cleaner.
-    # If you're debugging, remove stderr suppression.
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
 
-    return wav_path
+    raw_audio = process.stdout.read()
+    process.stdout.close()
+
+    if process.wait() != 0:
+        err = process.stderr.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"FFmpeg failed:\n{err}")
+
+    audio = np.frombuffer(raw_audio, dtype=np.float32)
+
+    if channels > 1:
+        audio = audio.reshape(-1, channels)
+    else:
+        audio = audio.reshape(-1, 1)
+
+    return audio, sr, channels
 
 
 def load_audio_from_path(path: str):
     """
     Video-safe loader:
-    - Uses ffmpeg to extract audio to a temporary WAV (local, private).
-    - Loads using soundfile instead of AudioSegment to avoid full in-memory decode explosion.
+    - Uses ffmpeg to decode and resample audio to float32 via stdout pipe
+      (avoids huge intermediate WAV files for large videos).
+    - Forces mono 16kHz by default.
     - Keeps return signature identical: (samples, sr, channels)
     """
-    wav_path = None
-    try:
-        wav_path = extract_audio_to_wav(path, sr=TARGET_SR, channels=TARGET_CHANNELS)
+    samples, sr, channels = extract_audio_to_array(
+        path,
+        sr=TARGET_SR,
+        channels=TARGET_CHANNELS,
+    )
 
-        with sf.SoundFile(wav_path) as f:
-            sr = f.samplerate
-            channels = f.channels
-            samples = f.read(dtype="float32")
+    # Ensure 2D shape: (n_samples, channels)
+    if samples.ndim == 1:
+        samples = samples.reshape(-1, 1)
 
-        if channels == 1:
-            samples = samples.reshape(-1, 1)
-
-        return samples, sr, channels
-
-    finally:
-        if wav_path:
-            try:
-                os.remove(wav_path)
-            except Exception:
-                pass
+    return samples, sr, channels
 
 # -----------------------------
 # Feature helpers
@@ -432,6 +439,12 @@ def pick_k_silhouette(
 
 def analyze_segments(samples, sr, channels):
     wav = torch.from_numpy(samples.mean(axis=1)).float()
+
+    # Lazy-load VAD model
+    vad_model, vad_utils = get_vad()
+    get_speech_timestamps = vad_utils[0]
+
+    # Run VAD
     timestamps = get_speech_timestamps(wav, vad_model, sampling_rate=sr)
 
     segments = []
